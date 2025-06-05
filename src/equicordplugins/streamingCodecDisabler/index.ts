@@ -9,9 +9,9 @@ import { EquicordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { findStoreLazy } from "@webpack";
 
-let mediaEngine = findStoreLazy("MediaEngineStore");
+const mediaEngine = findStoreLazy("MediaEngineStore");
 
-let originalCodecStatuses: {
+const originalCodecStatuses: {
     AV1: boolean,
     H265: boolean,
     H264: boolean;
@@ -21,27 +21,30 @@ let originalCodecStatuses: {
     H264: true
 };
 
+const settings = definePluginSettings({
+    disableAv1Codec: {
+        description: "Make Discord not consider using AV1 for streaming.",
+        type: OptionType.BOOLEAN,
+        default: false
+    },
+    disableH265Codec: {
+        description: "Make Discord not consider using H265 for streaming.",
+        type: OptionType.BOOLEAN,
+        default: false
+    },
+    disableH264Codec: {
+        description: "Make Discord not consider using H264 for streaming.",
+        type: OptionType.BOOLEAN,
+        default: false
+    },
+});
+
 export default definePlugin({
     name: "StreamingCodecDisabler",
-    description: "Disable codecs for streaming of your choice! (for multi-gpu setups and forcing encoding on a non-primary (and less capable) gpu)",
+    description: "Disable codecs for streaming of your choice",
     authors: [EquicordDevs.davidkra230],
-    settings: definePluginSettings({
-        disableAv1Codec: {
-            description: "Make Discord not consider using AV1 for streaming.",
-            type: OptionType.BOOLEAN,
-            default: false
-        },
-        disableH265Codec: {
-            description: "Make Discord not consider using H265 for streaming.",
-            type: OptionType.BOOLEAN,
-            default: false
-        },
-        disableH264Codec: {
-            description: "Make Discord not consider using H264 for streaming.",
-            type: OptionType.BOOLEAN,
-            default: false
-        },
-    }),
+    settings,
+
     patches: [
         {
             find: "setVideoBroadcast(this.shouldConnectionBroadcastVideo",
@@ -51,6 +54,7 @@ export default definePlugin({
             },
         }
     ],
+
     async updateDisabledCodecs() {
         mediaEngine.setAv1Enabled(originalCodecStatuses.AV1 && !Settings.plugins.StreamingCodecDisabler.disableAv1Codec);
         mediaEngine.setH265Enabled(originalCodecStatuses.H265 && !Settings.plugins.StreamingCodecDisabler.disableH265Codec);
@@ -58,16 +62,17 @@ export default definePlugin({
     },
 
     async start() {
-        mediaEngine = mediaEngine.getMediaEngine();
-        let options = Object.keys(originalCodecStatuses);
+        const engine = mediaEngine.getMediaEngine();
+        const options = Object.keys(originalCodecStatuses);
         // [{"codec":"","decode":false,"encode":false}]
-        let CodecCapabilities = JSON.parse(await new Promise((res) => mediaEngine.getCodecCapabilities(res)));
+        const CodecCapabilities = JSON.parse(await new Promise(res => engine.getCodecCapabilities(res)));
         CodecCapabilities.forEach((codec: { codec: string; encode: boolean; }) => {
             if (options.includes(codec.codec)) {
                 originalCodecStatuses[codec.codec] = codec.encode;
             }
         });
     },
+
     async stop() {
         mediaEngine.setAv1Enabled(originalCodecStatuses.AV1);
         mediaEngine.setH265Enabled(originalCodecStatuses.H265);
